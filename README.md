@@ -27,6 +27,10 @@ Chaque ville enregistré possède une url dédié, permettant au administré de 
 - idem pour les agents (maire, secrétaire, agent communaux) : un maire peux créer une secrétaire, une secrétaire responsable des ressources humaines peux créer des agents ou d'autre personnes pour des services, des services, des véhicule, des annonces, des événements, gérer les doléances utilisateur
 - Audit complet de sécurité pour arriver à une note à plus de 90/100
 
+## Gestion des véhicules
+- gestion des véhicule par équipe
+- gestion de l'entretien des véhicule avec système par mail et par notification
+
 ## charte graphique
 J'exige une charte graphique moderne, dynamique (uniquement en CSS) attrayante, afin d'atteindre une audience de visibilité rentable, mais également un taux de convertion de plus de 80/100 sur les abonnements stripe.
 
