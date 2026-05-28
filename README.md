@@ -12,7 +12,8 @@ C'est un service cle en main, complet, qui fonctionne en PWA sur tout support. L
 - Tailwind CSS v4
 - Discord (logging)
 - Stripe (abonnements via Laravel Cashier)
-- Laravel Sanctum (authentification httponly)
+- Laravel Sanctum (authentification httponly + tokens Bearer pour mobile)
+- NativePHP for Mobile (iOS / Android natif, voir [`docs/native-php-mobile.md`](docs/native-php-mobile.md))
 
 ## SEO
 Chaque ville enregistree possede une URL dediee (`/ville/:uuid`), permettant aux administres de retrouver le site simplement et aux moteurs de recherche de referencer efficacement le systeme.
@@ -49,7 +50,12 @@ Chaque ville enregistree possede une URL dediee (`/ville/:uuid`), permettant aux
 ## Exigences
 - Toutes les icones sont fonctionnelles (SVG inline)
 - Logs Discord integres dans tous les controllers (try/catch + actions importantes)
-- Tests unitaires complets : **194 tests, 490 assertions, 0 echec**
+- Tests unitaires complets : **202 tests, 517 assertions, 0 echec**
+
+## App mobile native (NativePHP)
+- Le repo est pre-configure pour NativePHP for Mobile : depot Composer prive, variables `NATIVEPHP_*` dans `.env.example`, `nativephp/` ignore par git, guide d'installation [`docs/native-php-mobile.md`](docs/native-php-mobile.md).
+- NativePHP est un **package commercial sous licence payante** ; il n'est volontairement pas vendorise. Une fois la licence acquise : `composer require nativephp/mobile && php artisan native:install && php artisan native:run`.
+- Auth mobile : `POST /api/login` accepte un champ `device_name` ; lorsque present, un token Sanctum (Bearer) est emis en plus du cookie httponly. Le SPA web continue d'utiliser la session ; un client mobile peut s'authentifier sans cookie. `POST /api/logout` revoque le token courant.
 
 ## Abonnement
 Abonnement a tarif unique de 80EUR par mois sans engagement, gere via Stripe / Laravel Cashier.
@@ -70,8 +76,9 @@ Le repo est passe par le cycle complet : **developpement -> verification -> test
 |-----------------|--------|------------|
 | `web.php` etait un simple catch-all : les meta tags `/ville/:uuid` n'etaient jamais peuples cote serveur | **Corrige** | Ajout de `SpaController` (index + city), route dediee `/ville/{uuid}` avec contrainte UUID, blade enrichie (canonical, OG complet, Twitter Card, `<noscript>` SEO) |
 | `SubscriptionController` referencait `config('cashier.plans.city_monthly')` mais il n'existait aucun `config/cashier.php` ; les variables Stripe absentes de `.env.example` | **Corrige** | Creation de `config/cashier.php` (currency EUR, plan `city_monthly`, montant 8000 cents) + ajout des variables `STRIPE_KEY/SECRET/WEBHOOK_SECRET/PRICE_CITY_MONTHLY` et `SANCTUM_STATEFUL_DOMAINS` a `.env.example` |
+| Aucun chemin pour construire les apps iOS / Android demandees par la specification "service cle en main, fonctionne sur tout support" | **Corrige** | Scaffolding NativePHP for Mobile : depot Composer prive declare, variables `NATIVEPHP_*`, `.gitignore` etendu, guide [`docs/native-php-mobile.md`](docs/native-php-mobile.md), tests de garde. `AuthController` emet desormais un token Sanctum quand `device_name` est fourni, et `logout` revoque le token courant. |
 
-Aucune regression : les 187 tests existants restent verts, 7 nouveaux tests ont ete ajoutes (4 SEO + 3 config Cashier), pour un total de **194 tests / 490 assertions / 0 echec** en `3.90s`.
+Aucune regression : les 187 tests existants restent verts, 15 nouveaux tests ont ete ajoutes (4 SEO + 3 config Cashier + 4 NativePHP scaffolding + 4 mobile token auth), pour un total de **202 tests / 517 assertions / 0 echec**.
 
 ### Architecture
 
@@ -89,6 +96,8 @@ citypulse/
     Http/Middleware/              # EnsureCitySubscribed
   config/
     cashier.php                   # << NOUVEAU - plan unique 80EUR/mois
+  docs/
+    native-php-mobile.md          # << NOUVEAU - guide install NativePHP
   database/
     factories/                    # 9 factories
     migrations/                   # 10 migrations custom + Sanctum + Cashier
@@ -110,11 +119,12 @@ citypulse/
     icons/                        # Icones PWA 192x192 / 512x512
   tests/
     Unit/
-      Config/                     # << NOUVEAU - Cashier config
+      Config/                     # << NOUVEAU - Cashier + NativePHP scaffolding
       Models/                     # User, City, Doleance
       Services/                   # DiscordLogger
     Feature/
-      Auth/ Doleance/ Event/ Announcement/ Alert/
+      Auth/                       # + MobileTokenAuthTest (NOUVEAU)
+      Doleance/ Event/ Announcement/ Alert/
       Intervention/ Vehicle/ Profile/ Dashboard/ City/
       Seo/                        # << NOUVEAU - SSR /ville/{uuid}
 ```
@@ -157,18 +167,19 @@ citypulse/
 
 ### Tests
 ```
-Tests:    194 passed (490 assertions)
-Duration: 3.90s
+Tests:    202 passed (517 assertions)
 
-Unit Tests (49 tests):
+Unit Tests (53 tests):
   - UserTest: UUID, roles, relations, hidden fields, password hash
   - CityTest: UUID, relations, soft deletes, subscription
   - DoleanceTest: UUID, fillable, hidden, casts, relations
   - DiscordLoggerTest: instantiation, HTTP mocking, error handling
   - CashierConfigTest: currency EUR, plan city_monthly, montant 80EUR  # NOUVEAU
+  - NativePhpScaffoldingTest: composer repo, env vars, .gitignore, doc  # NOUVEAU
 
-Feature Tests (145 tests):
+Feature Tests (149 tests):
   - LoginTest / RegisterTest : credentials, validation, session, logout
+  - MobileTokenAuthTest : device_name -> token Bearer, logout revoque   # NOUVEAU
   - DoleanceTest : CRUD, ownership, consultation rules, staff access
   - EventTest / AnnouncementTest / AlertTest : CRUD, role restrictions, validation
   - InterventionTest : CRUD, staff-only, role variants
@@ -228,3 +239,4 @@ Variables d'environnement specifiques :
 - `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_CITY_MONTHLY` : Stripe / Cashier
 - `CASHIER_CURRENCY=eur`, `CASHIER_CURRENCY_LOCALE=fr`
 - `SANCTUM_STATEFUL_DOMAINS` : domaines autorises pour le cookie de session
+- `NATIVEPHP_APP_ID`, `NATIVEPHP_APP_VERSION`, `NATIVEPHP_APP_VERSION_CODE`, `NATIVEPHP_DEVELOPMENT_TEAM`, `NATIVEPHP_DEEPLINKING_*` : build mobile natif (voir [`docs/native-php-mobile.md`](docs/native-php-mobile.md))

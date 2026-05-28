@@ -25,9 +25,12 @@ class AuthController extends Controller
             $validated = $request->validate([
                 'email' => ['required', 'email'],
                 'password' => ['required', 'string'],
+                'device_name' => ['nullable', 'string', 'max:255'],
             ]);
 
-            if (!Auth::attempt($validated, $request->boolean('remember'))) {
+            $credentials = ['email' => $validated['email'], 'password' => $validated['password']];
+
+            if (!Auth::attempt($credentials, $request->boolean('remember'))) {
                 return response()->json([
                     'message' => 'Identifiants incorrects.',
                 ], 401);
@@ -39,10 +42,19 @@ class AuthController extends Controller
 
             $user = Auth::user();
 
-            return response()->json([
+            $payload = [
                 'message' => 'Connexion reussie.',
                 'user' => $user->load('city'),
-            ]);
+            ];
+
+            // Mobile clients (NativePHP shipping a remote backend, or any token-only
+            // SDK) pass `device_name` and receive a Sanctum personal access token.
+            // The default SPA/web flow ignores this and keeps the httponly session.
+            if (!empty($validated['device_name'])) {
+                $payload['token'] = $user->createToken($validated['device_name'])->plainTextToken;
+            }
+
+            return response()->json($payload);
         } catch (\Throwable $e) {
             app(DiscordLogger::class)->error('Login failed', [
                 'error' => $e->getMessage(),
@@ -115,6 +127,13 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
+        // Revoke the current Sanctum personal access token when the request
+        // was authenticated via Bearer (mobile / NativePHP remote backend).
+        $token = $request->user()?->currentAccessToken();
+        if ($token instanceof \Laravel\Sanctum\PersonalAccessToken) {
+            $token->delete();
+        }
+
         Auth::guard('web')->logout();
 
         if ($request->hasSession()) {
