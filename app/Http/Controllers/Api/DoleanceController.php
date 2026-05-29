@@ -142,6 +142,13 @@ class DoleanceController extends Controller
                 if (isset($validated['status']) && $validated['status'] === 'resolue') {
                     $validated['resolved_at'] = now();
                 }
+
+                // Any staff mutation counts as a consultation: keep consulted_at
+                // in sync so an owner can no longer delete the doleance even if
+                // staff bumped the status without first hitting GET /show.
+                if (is_null($doleance->consulted_at)) {
+                    $validated['consulted_at'] = now();
+                }
             } else {
                 $validated = $request->validate([
                     'title' => ['sometimes', 'string', 'max:255'],

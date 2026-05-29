@@ -94,4 +94,15 @@ class Doleance extends Model
     {
         return $this->hasOne(Intervention::class);
     }
+
+    /**
+     * A doleance is "consulted" — and therefore locked from owner mutation —
+     * as soon as staff has seen it (consulted_at) OR moved it off `nouvelle`.
+     * The two signals must agree so an owner cannot delete a doleance whose
+     * status was bumped before staff opened it (race window otherwise).
+     */
+    public function isConsulted(): bool
+    {
+        return !is_null($this->consulted_at) || $this->status !== 'nouvelle';
+    }
 }

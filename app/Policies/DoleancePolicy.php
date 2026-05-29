@@ -45,9 +45,9 @@ class DoleancePolicy
      */
     public function update(User $user, Doleance $doleance): bool
     {
-        // Owner can update if status is still nouvelle
-        if ($user->id === $doleance->user_id && $doleance->status === 'nouvelle') {
-            return true;
+        // Owner can update only while the doleance has not been consulted.
+        if ($user->id === $doleance->user_id) {
+            return !$doleance->isConsulted();
         }
 
         // Staff can update doleances from their city (status, response, etc.)
@@ -59,7 +59,7 @@ class DoleancePolicy
      */
     public function delete(User $user, Doleance $doleance): bool
     {
-        // Only owner can delete, and only if not yet consulted
-        return $user->id === $doleance->user_id && is_null($doleance->consulted_at);
+        // Only the owner, and only while not yet consulted by the administration.
+        return $user->id === $doleance->user_id && !$doleance->isConsulted();
     }
 }
